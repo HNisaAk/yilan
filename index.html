@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Klasik Yılan Oyunu</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background-color: #111811;
+      color: #a8e6a3;
+      font-family: "Courier New", Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+      touch-action: manipulation;
+    }
+
+    .game-wrapper {
+      background: #1a241a;
+      border: 4px solid #3c5a3c;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 3px;
+      margin-bottom: 12px;
+      color: #c8f7c5;
+      text-transform: uppercase;
+    }
+
+    .scoreboard {
+      display: flex;
+      justify-content: space-between;
+      background: #0d140d;
+      border: 2px solid #2e472e;
+      border-radius: 8px;
+      padding: 8px 14px;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+      font-weight: bold;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background-color: #8bac0f; /* Eski LCD ekran yeşili */
+      border: 4px solid #0f380f;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 56, 15, 0.85);
+      color: #e0f8d0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px;
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .overlay h2 {
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+    }
+
+    .overlay p {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    .btn {
+      background: #306230;
+      color: #e0f8d0;
+      border: 2px solid #9bbc0f;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s;
+    }
+
+    .btn:hover {
+      background: #3f7d3f;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .controls {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-template-rows: repeat(2, 52px);
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .ctrl-btn {
+      background: #233323;
+      color: #c8f7c5;
+      border: 2px solid #486b48;
+      border-radius: 8px;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ctrl-btn:active {
+      background: #3c5a3c;
+      transform: scale(0.94);
+    }
+
+    .up { grid-column: 2; grid-row: 1; }
+    .left { grid-column: 1; grid-row: 2; }
+    .down { grid-column: 2; grid-row: 2; }
+    .right { grid-column: 3; grid-row: 2; }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: #7ea37e;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-wrapper">
+    <h1>🐍 Yılan Oyunu</h1>
+
+    <div class="scoreboard">
+      <span>SKOR: <span id="score">0</span></span>
+      <span>EN YÜKSEK: <span id="highScore">0</span></span>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="gameCanvas" width="400" height="400"></canvas>
+      <div id="overlay" class="overlay">
+        <h2 id="overlayTitle">HAZIR MISIN?</h2>
+        <p id="overlayText">Elmaları ye, duvarlara ve kendine çarpma!</p>
+        <button id="startBtn" class="btn">BAŞLA</button>
+      </div>
+    </div>
+
+    <!-- Mobil ve dokunmatik ekranlar için yön tuşları -->
+    <div class="controls">
+      <button class="ctrl-btn up" data-dir="UP">▲</button>
+      <button class="ctrl-btn left" data-dir="LEFT">◀</button>
+      <button class="ctrl-btn down" data-dir="DOWN">▼</button>
+      <button class="ctrl-btn right" data-dir="RIGHT">▶</button>
+    </div>
+
+    <p class="hint">Bilgisayarda Yön Tuşları / WASD • Duraklat: Boşluk</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const highScoreEl = document.getElementById("highScore");
+    const overlay = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText = document.getElementById("overlayText");
+    const startBtn = document.getElementById("startBtn");
+
+    const gridSize = 20;
+    const tileCount = canvas.width / gridSize;
+
+    let snake = [];
+    let apple = { x: 10, y: 10 };
+    let dx = 1;
+    let dy = 0;
+    let nextDirection = { dx: 1, dy: 0 };
+    let score = 0;
+    let highScore = Number(localStorage.getItem("retroSnakeHighScore")) || 0;
+    let gameLoop = null;
+    let speed = 135;
+    let isRunning = false;
+    let isPaused = false;
+
+    highScoreEl.textContent = highScore;
+
+    function initGame() {
+      snake = [
+        { x: 10, y: 10 },
+        { x: 9, y: 10 },
+        { x: 8, y: 10 }
+      ];
+      dx = 1;
+      dy = 0;
+      nextDirection = { dx: 1, dy: 0 };
+      score = 0;
+      speed = 135;
+      isPaused = false;
+      isRunning = true;
+      scoreEl.textContent = score;
+      spawnApple();
+      overlay.classList.add("hidden");
+
+      clearInterval(gameLoop);
+      gameLoop = setInterval(update, speed);
+      draw();
+    }
+
+    function spawnApple() {
+      let valid = false;
+      while (!valid) {
+        apple.x = Math.floor(Math.random() * tileCount);
+        apple.y = Math.floor(Math.random() * tileCount);
+        valid = !snake.some(part => part.x === apple.x && part.y === apple.y);
+      }
+    }
+
+    function update() {
+      if (isPaused) return;
+
+      dx = nextDirection.dx;
+      dy = nextDirection.dy;
+
+      const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+      // Duvara veya kendine çarpma kontrolü
+      const hitWall = head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount;
+      const hitSelf = snake.some(part => part.x === head.x && part.y === head.y);
+
+      if (hitWall || hitSelf) {
+        gameOver();
+        return;
+      }
+
+      snake.unshift(head);
+
+      // Elma yeme kontrolü
+      if (head.x === apple.x && head.y === apple.y) {
+        score += 10;
+        scoreEl.textContent = score;
+
+        if (score > highScore) {
+          highScore = score;
+          highScoreEl.textContent = highScore;
+          localStorage.setItem("retroSnakeHighScore", highScore);
+        }
+
+        spawnApple();
+
+        // Her elmayla hafif hızlanma
+        if (speed > 75) {
+          speed -= 2;
+          clearInterval(gameLoop);
+          gameLoop = setInterval(update, speed);
+        }
+      } else {
+        snake.pop();
+      }
+
+      draw();
+    }
+
+    function draw() {
+      // Eski tip LCD arka plan
+      ctx.fillStyle = "#8bac0f";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // İnce kare ızgara
+      ctx.strokeStyle = "rgba(15, 56, 15, 0.12)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= tileCount; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * gridSize, 0);
+        ctx.lineTo(i * gridSize, canvas.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, i * gridSize);
+        ctx.lineTo(canvas.width, i * gridSize);
+        ctx.stroke();
+      }
+
+      // Elma (kırmızı piksel elma + yeşil yaprak)
+      const ax = apple.x * gridSize;
+      const ay = apple.y * gridSize;
+      ctx.fillStyle = "#c0392b";
+      ctx.fillRect(ax + 3, ay + 4, gridSize - 6, gridSize - 6);
+      ctx.fillStyle = "#1e5631";
+      ctx.fillRect(ax + 9, ay + 1, 4, 4);
+
+      // Yılan
+      snake.forEach((part, index) => {
+        ctx.fillStyle = index === 0 ? "#0f380f" : "#306230";
+        ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+
+        // Yılanın gözleri
+        if (index === 0) {
+          ctx.fillStyle = "#9bbc0f";
+          ctx.fillRect(part.x * gridSize + 5, part.y * gridSize + 5, 3, 3);
+          ctx.fillRect(part.x * gridSize + 12, part.y * gridSize + 5, 3, 3);
+        }
+      });
+    }
+
+    function gameOver() {
+      isRunning = false;
+      clearInterval(gameLoop);
+      overlayTitle.textContent = "OYUN BİTTİ!";
+      overlayText.textContent = `Skorun: ${score} • Tekrar denemek ister misin?`;
+      startBtn.textContent = "TEKRAR OYNA";
+      overlay.classList.remove("hidden");
+    }
+
+    function setDirection(dir) {
+      if (!isRunning || isPaused) return;
+      if (dir === "UP" && dy !== 1) nextDirection = { dx: 0, dy: -1 };
+      if (dir === "DOWN" && dy !== -1) nextDirection = { dx: 0, dy: 1 };
+      if (dir === "LEFT" && dx !== 1) nextDirection = { dx: -1, dy: 0 };
+      if (dir === "RIGHT" && dx !== -1) nextDirection = { dx: 1, dy: 0 };
+    }
+
+    // Klavye kontrolleri
+    document.addEventListener("keydown", (e) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+        e.preventDefault();
+      }
+      if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") setDirection("UP");
+      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") setDirection("DOWN");
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") setDirection("LEFT");
+      if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") setDirection("RIGHT");
+
+      if (e.key === " " && isRunning) {
+        isPaused = !isPaused;
+        if (isPaused) {
+          overlayTitle.textContent = "DURAKLATILDI";
+          overlayText.textContent = "Devam etmek için Boşluk tuşuna bas.";
+          startBtn.textContent = "DEVAM ET";
+          overlay.classList.remove("hidden");
+        } else {
+          overlay.classList.add("hidden");
+        }
+      }
+    });
+
+    // Ekrandaki yön butonları
+    document.querySelectorAll(".ctrl-btn").forEach(btn => {
+      btn.addEventListener("click", () => setDirection(btn.dataset.dir));
+    });
+
+    // Telefonda kaydırma (swipe) desteği
+    let touchStartX = 0;
+    let touchStartY = 0;
+    canvas.addEventListener("touchstart", (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    canvas.addEventListener("touchend", (e) => {
+      const diffX = e.changedTouches[0].clientX - touchStartX;
+      const diffY = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 20) setDirection("RIGHT");
+        else if (diffX < -20) setDirection("LEFT");
+      } else {
+        if (diffY > 20) setDirection("DOWN");
+        else if (diffY < -20) setDirection("UP");
+      }
+    }, { passive: true });
+
+    startBtn.addEventListener("click", () => {
+      if (isPaused) {
+        isPaused = false;
+        overlay.classList.add("hidden");
+      } else {
+        initGame();
+      }
+    });
+
+    draw();
+  </script>
+</body>
+</html>
