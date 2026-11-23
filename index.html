@@ -40,7 +40,7 @@
     h1 {
       font-size: 1.4rem;
       letter-spacing: 3px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       color: #c8f7c5;
       text-transform: uppercase;
     }
@@ -52,16 +52,53 @@
       border: 2px solid #2e472e;
       border-radius: 8px;
       padding: 8px 14px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       font-size: 0.95rem;
       font-weight: bold;
+    }
+
+    .color-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0d140d;
+      border: 2px solid #2e472e;
+      border-radius: 8px;
+      padding: 7px 12px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+    }
+
+    .color-options {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #486b48;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.12);
+    }
+
+    .color-btn.active {
+      border: 3px solid #e0f8d0;
+      transform: scale(1.15);
+      box-shadow: 0 0 8px rgba(224, 248, 208, 0.6);
     }
 
     .canvas-container {
       position: relative;
       width: 100%;
       aspect-ratio: 1 / 1;
-      background-color: #8bac0f; /* Eski LCD ekran yeşili */
+      background-color: #8bac0f;
       border: 4px solid #0f380f;
       border-radius: 6px;
       overflow: hidden;
@@ -169,16 +206,26 @@
       <span>EN YÜKSEK: <span id="highScore">0</span></span>
     </div>
 
+    <div class="color-bar">
+      <span>YILAN RENGİ:</span>
+      <div class="color-options" id="colorOptions">
+        <button class="color-btn" data-color="classic" title="Klasik Yeşil" style="background: #1e4d1e;"></button>
+        <button class="color-btn" data-color="blue" title="Mavi" style="background: #1d5b96;"></button>
+        <button class="color-btn" data-color="purple" title="Mor" style="background: #6c278f;"></button>
+        <button class="color-btn" data-color="rose" title="Gül Kurusu" style="background: #b5215c;"></button>
+        <button class="color-btn" data-color="dark" title="Gece Siyahı" style="background: #1c1c1c;"></button>
+      </div>
+    </div>
+
     <div class="canvas-container">
       <canvas id="gameCanvas" width="400" height="400"></canvas>
       <div id="overlay" class="overlay">
         <h2 id="overlayTitle">HAZIR MISIN?</h2>
-        <p id="overlayText">Elmaları ye, duvarlara ve kendine çarpma!</p>
+        <p id="overlayText">Rengini seç, elmaları ye ve duvarlara çarpma!</p>
         <button id="startBtn" class="btn">BAŞLA</button>
       </div>
     </div>
 
-    <!-- Mobil ve dokunmatik ekranlar için yön tuşları -->
     <div class="controls">
       <button class="ctrl-btn up" data-dir="UP">▲</button>
       <button class="ctrl-btn left" data-dir="LEFT">◀</button>
@@ -198,23 +245,60 @@
     const overlayTitle = document.getElementById("overlayTitle");
     const overlayText = document.getElementById("overlayText");
     const startBtn = document.getElementById("startBtn");
+    const colorBtns = document.querySelectorAll(".color-btn");
 
     const gridSize = 20;
     const tileCount = canvas.width / gridSize;
 
-    let snake = [];
-    let apple = { x: 10, y: 10 };
+    // Yılan renk paletleri
+    const snakeColors = {
+      classic: { head: "#0f380f", body: "#306230", eye: "#d9f99d" },
+      blue:    { head: "#133a63", body: "#266eb5", eye: "#e0f2fe" },
+      purple:  { head: "#431259", body: "#7b2cbf", eye: "#f3e8ff" },
+      rose:    { head: "#7a0e3a", body: "#c92a6a", eye: "#ffe4e6" },
+      dark:    { head: "#111111", body: "#3a3a3a", eye: "#f5f5f5" }
+    };
+
+    let selectedColor = localStorage.getItem("retroSnakeColor") || "classic";
+    if (!snakeColors[selectedColor]) selectedColor = "classic";
+
+    let snake = [
+      { x: 10, y: 10 },
+      { x: 9, y: 10 },
+      { x: 8, y: 10 }
+    ];
+    let apple = { x: 15, y: 10 };
     let dx = 1;
     let dy = 0;
     let nextDirection = { dx: 1, dy: 0 };
     let score = 0;
     let highScore = Number(localStorage.getItem("retroSnakeHighScore")) || 0;
     let gameLoop = null;
-    let speed = 135;
+    const INITIAL_SPEED = 200; // Daha yavaş ve rahat başlangıç hızı (ms)
+    const MIN_SPEED = 125;     // En yüksek hız sınırı
+    let speed = INITIAL_SPEED;
     let isRunning = false;
     let isPaused = false;
 
     highScoreEl.textContent = highScore;
+
+    function updateColorButtons() {
+      colorBtns.forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.color === selectedColor);
+      });
+    }
+
+    colorBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedColor = btn.dataset.color;
+        localStorage.setItem("retroSnakeColor", selectedColor);
+        updateColorButtons();
+        btn.blur(); // Boşluk tuşunun butonu tekrar tetiklemesini önler
+        draw();
+      });
+    });
+
+    updateColorButtons();
 
     function initGame() {
       snake = [
@@ -226,7 +310,7 @@
       dy = 0;
       nextDirection = { dx: 1, dy: 0 };
       score = 0;
-      speed = 135;
+      speed = INITIAL_SPEED;
       isPaused = false;
       isRunning = true;
       scoreEl.textContent = score;
@@ -255,7 +339,6 @@
 
       const head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-      // Duvara veya kendine çarpma kontrolü
       const hitWall = head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount;
       const hitSelf = snake.some(part => part.x === head.x && part.y === head.y);
 
@@ -266,7 +349,6 @@
 
       snake.unshift(head);
 
-      // Elma yeme kontrolü
       if (head.x === apple.x && head.y === apple.y) {
         score += 10;
         scoreEl.textContent = score;
@@ -279,9 +361,9 @@
 
         spawnApple();
 
-        // Her elmayla hafif hızlanma
-        if (speed > 75) {
-          speed -= 2;
+        // Her elmayla çok hafif ve dengeli hızlanma
+        if (speed > MIN_SPEED) {
+          speed = Math.max(MIN_SPEED, speed - 2);
           clearInterval(gameLoop);
           gameLoop = setInterval(update, speed);
         }
@@ -293,7 +375,6 @@
     }
 
     function draw() {
-      // Eski tip LCD arka plan
       ctx.fillStyle = "#8bac0f";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -312,7 +393,7 @@
         ctx.stroke();
       }
 
-      // Elma (kırmızı piksel elma + yeşil yaprak)
+      // Elma
       const ax = apple.x * gridSize;
       const ay = apple.y * gridSize;
       ctx.fillStyle = "#c0392b";
@@ -320,14 +401,14 @@
       ctx.fillStyle = "#1e5631";
       ctx.fillRect(ax + 9, ay + 1, 4, 4);
 
-      // Yılan
+      // Seçili renkte yılan
+      const palette = snakeColors[selectedColor];
       snake.forEach((part, index) => {
-        ctx.fillStyle = index === 0 ? "#0f380f" : "#306230";
+        ctx.fillStyle = index === 0 ? palette.head : palette.body;
         ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
 
-        // Yılanın gözleri
         if (index === 0) {
-          ctx.fillStyle = "#9bbc0f";
+          ctx.fillStyle = palette.eye;
           ctx.fillRect(part.x * gridSize + 5, part.y * gridSize + 5, 3, 3);
           ctx.fillRect(part.x * gridSize + 12, part.y * gridSize + 5, 3, 3);
         }
@@ -351,7 +432,6 @@
       if (dir === "RIGHT" && dx !== -1) nextDirection = { dx: 1, dy: 0 };
     }
 
-    // Klavye kontrolleri
     document.addEventListener("keydown", (e) => {
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
         e.preventDefault();
@@ -374,12 +454,13 @@
       }
     });
 
-    // Ekrandaki yön butonları
     document.querySelectorAll(".ctrl-btn").forEach(btn => {
-      btn.addEventListener("click", () => setDirection(btn.dataset.dir));
+      btn.addEventListener("click", () => {
+        setDirection(btn.dataset.dir);
+        btn.blur();
+      });
     });
 
-    // Telefonda kaydırma (swipe) desteği
     let touchStartX = 0;
     let touchStartY = 0;
     canvas.addEventListener("touchstart", (e) => {
@@ -400,6 +481,7 @@
     }, { passive: true });
 
     startBtn.addEventListener("click", () => {
+      startBtn.blur();
       if (isPaused) {
         isPaused = false;
         overlay.classList.add("hidden");
